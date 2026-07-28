@@ -41,7 +41,7 @@ def _load_workflow() -> Dict[str, Any]:
     # 1. Try env var (backward compat)
     env_path = (os.environ.get("COMFYUI_WORKFLOW_PATH") or "").strip()
     if env_path:
-        with open(env_path, "r") as fh:
+        with open(env_path, "r", encoding="utf-8") as fh:
             return json.load(fh)
 
     # 2. Auto-discover from plugin directory
@@ -54,7 +54,7 @@ def _load_workflow() -> Dict[str, Any]:
         )
     path = json_files[0]
     logger.info("ComfyUI: auto-discovered workflow %s", path.name)
-    with open(path, "r") as fh:
+    with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
 
 
