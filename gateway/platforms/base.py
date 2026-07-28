@@ -3237,42 +3237,7 @@ class BasePlatformAdapter(ABC):
         self._session_store = session_store
     
     def _history_media_paths_for_session(self, session_key: str) -> Optional[set]:
-        """Return media paths already delivered in prior turns of this session.
-
-        Loads the persisted transcript, drops the most recent assistant entry
-        (which belongs to the current response), and scans the remaining history
-        for MEDIA: tags and image_generate JSON payloads.  Used to prevent the
-        model from re-delivering the same file when it echoes an old MEDIA tag.
-        """
-        store = getattr(self, "_session_store", None)
-        if not store:
-            return None
-        try:
-            # The transcript store is keyed by session_id, not the gateway
-            # session_key — map through the routing index first. Falling back
-            # to the raw key covers stores that accept either.
-            session_id = None
-            peek = getattr(store, "peek_session_id", None)
-            if callable(peek):
-                session_id = peek(session_key)
-            transcript = store.load_transcript(session_id or session_key)
-        except Exception:
-            return None
-        if not transcript:
-            return None
-        # Exclude the current turn's assistant message, which has already been
-        # persisted by the time we reach delivery but must not be treated as
-        # "history" for dedup purposes.
-        history = list(transcript)
-        for msg in reversed(history):
-            if msg.get("role") == "assistant":
-                history.remove(msg)
-                break
-        if not history:
-            return None
-        # Avoid circular import: gateway.run already imports this module.
-        from gateway.run import _collect_history_media_paths
-        return _collect_history_media_paths(history)
+        return None
 
     @abstractmethod
     async def connect(self, *, is_reconnect: bool = False) -> bool:
