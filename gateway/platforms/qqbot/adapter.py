@@ -3103,7 +3103,11 @@ class QQAdapter(BasePlatformAdapter):
         return await self.send_with_keyboard(
             chat_id,
             build_approval_text(req),
-            build_approval_keyboard(req.session_key),
+            build_approval_keyboard(
+                req.session_key,
+                allow_permanent=req.allow_permanent,
+                smart_denied=req.smart_denied,
+            ),
             reply_to=reply_to,
         )
 
@@ -3125,6 +3129,7 @@ class QQAdapter(BasePlatformAdapter):
             metadata: Optional[Dict[str, Any]] = None,
         allow_permanent: bool = True,
         allow_session: bool = True,
+        smart_denied: bool = False,
     ) -> SendResult:
         """Send a button-based exec-approval prompt for a dangerous command.
 
@@ -3147,6 +3152,8 @@ class QQAdapter(BasePlatformAdapter):
             description=description,
             command_preview=command,
             timeout_sec=self._APPROVAL_TIMEOUT_SECONDS,
+            allow_permanent=allow_permanent,
+            smart_denied=smart_denied,
         )
         return await self.send_approval_request(
             chat_id, req, reply_to=msg_id,

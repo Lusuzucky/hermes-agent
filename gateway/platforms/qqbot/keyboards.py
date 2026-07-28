@@ -201,7 +201,7 @@ def _make_callback_button(
     )
 
 
-def build_approval_keyboard(session_key: str, *, allow_permanent: bool = True) -> InlineKeyboard:
+def build_approval_keyboard(session_key: str, *, allow_permanent: bool = True, smart_denied: bool = False) -> InlineKeyboard:
     """Build the approval keyboard, hiding persistent scope when unavailable.
 
     Layout: ``[✅ 允许一次] [⭐ 始终允许] [❌ 拒绝]`` — all three share
@@ -209,6 +209,8 @@ def build_approval_keyboard(session_key: str, *, allow_permanent: bool = True) -
 
     :param session_key: Embedded into ``button_data`` so the decision
         routes back to the right pending approval.
+    :param smart_denied: When True, only show "allow once" + "deny" —
+        the owner override applies to this single operation only.
     """
     buttons = [
         _make_callback_button(
@@ -217,7 +219,7 @@ def build_approval_keyboard(session_key: str, *, allow_permanent: bool = True) -
             style=1, group_id="approval",
         )
     ]
-    if allow_permanent:
+    if allow_permanent and not smart_denied:
         buttons.append(_make_callback_button(
             btn_id="always", label="⭐ 始终允许", visited_label="已始终允许",
             data=f"{APPROVAL_BUTTON_PREFIX}{session_key}:allow-always",
@@ -283,6 +285,7 @@ class ApprovalRequest:
     severity: str = ""
     timeout_sec: int = 120
     allow_permanent: bool = True
+    smart_denied: bool = False
 
 
 def build_approval_text(req: ApprovalRequest) -> str:
@@ -303,6 +306,9 @@ def _build_exec_text(req: ApprovalRequest) -> str:
         lines.append(f"📋 {req.title}")
     if req.description:
         lines.append(f"📝 {req.description}")
+    if req.smart_denied:
+        lines.append("")
+        lines.append("**Smart DENY:** 所有者覆盖仅对此单次操作生效。")
     lines.append("")
     lines.append(f"⏱️ 超时: {req.timeout_sec} 秒")
     return "\n".join(lines)
@@ -320,6 +326,9 @@ def _build_plugin_text(req: ApprovalRequest) -> str:
         lines.append(f"📝 {req.description}")
     if req.tool_name:
         lines.append(f"🔧 工具: {req.tool_name}")
+    if req.smart_denied:
+        lines.append("")
+        lines.append("**Smart DENY:** 所有者覆盖仅对此单次操作生效。")
     lines.append("")
     lines.append(f"⏱️ 超时: {req.timeout_sec} 秒")
     return "\n".join(lines)
