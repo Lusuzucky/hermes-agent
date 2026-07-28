@@ -1,7 +1,7 @@
 {
   "348": {
     "inputs": {
-      "unet_name": "anima-base-v1.0.safetensors",
+      "unet_name": "Anima/anima-aesthetic-v1.1_1.safetensors",
       "weight_dtype": "default"
     },
     "class_type": "UNETLoader",
@@ -11,7 +11,7 @@
   },
   "349": {
     "inputs": {
-      "clip_name": "qwen_3_06b_base.safetensors",
+      "clip_name": "Anima/qwen_3_06b_base.safetensors",
       "type": "stable_diffusion",
       "device": "default"
     },
@@ -22,7 +22,7 @@
   },
   "356": {
     "inputs": {
-      "shift": 3,
+      "shift": 1.73,
       "model": [
         "428",
         0
@@ -35,10 +35,7 @@
   },
   "357": {
     "inputs": {
-      "text": [
-        "387",
-        0
-      ],
+      "text": "@kani biimu, masterpiece, aesthetic, best quality, good quality, score_9, score_8, __REPLACE_THE__PROMPT__",
       "clip": [
         "349",
         0
@@ -51,7 +48,7 @@
   },
   "358": {
     "inputs": {
-      "text": "worst quality, low quality, score_1, score_2, score_3, artist name,\nThis image suffers from low resolution and poor quality, appearing pixelated, blurry, and full of compression or jpeg artifacts.\nThe scene is cluttered with many small figures, heads, or people in the background that look like chibi characters, dolls, or fumo dolls, surrounding the subject with a large collection of plush toys.\nThe artwork looks like a fake anime or game screenshot with noise, errors, and scan lines, resembling something unfinished sketch with a simple, abstract, or monochrome background.\nThe anatomy is incorrect, featuring bad proportions, bad perspective, and ugly, deformed body parts such as bad hands, bad feet, fused or missing fingers, extra limbs, and twisted or flexible deformities. The image contains four fingers, six fingers, four toes, six toes.\nThis image contains many of the artist's signatures around the edges, and contains many watermarks, signatures, logos, or censorship bars like mosaics, and has an low-score AI-generated error.\nThe character in this image has a white area above the eyes, a white forehead, and many lines on the eyelids.\nDraw by @Alexander Groznov, @Andrew Wyeth, @Boris Vallejo, @Entei Ryu, @Manara Milo, @Marco Turini, @Norman Rockwell, @Paulina Sadowska, @Syd Mead, @Syd Mills, @THORES Shibamoto, @chinese anime style, @renwan.",
+      "text": "pink halo, halo, nail polish, sweat, sweat bean, water bean, worst quality, low quality, score_1, score_2, score_3, artist name, low resolution, poor quality, appearing pixelated, blurry, jpeg artifacts, small figures, chibi characters, dolls, fumo dolls, plush toys, error, scan lines, unfinished sketch, simple background, abstract background, monochrome background, incorrect anatomy, featuring bad proportions, bad perspective, ugly, deformed body, bad hands, bad feet, fused fingers, missing fingers, extra limbs, twisted deformities, flexible deformities, four fingers, six fingers, four toes, six toes, artist name, watermarks, signatures, logos, censorship bars, mosaics, low-score AI-generated",
       "clip": [
         "349",
         0
@@ -73,8 +70,8 @@
   },
   "361": {
     "inputs": {
-      "width": 1024,
-      "height": 1536,
+      "width": 512,
+      "height": 768,
       "batch_size": 1
     },
     "class_type": "EmptyLatentImage",
@@ -82,40 +79,10 @@
       "title": "尺寸"
     }
   },
-  "362": {
-    "inputs": {
-      "seed": 654078490328536,
-      "steps": 6,
-      "cfg": 1,
-      "sampler_name": "er_sde",
-      "scheduler": "simple",
-      "denoise": 1,
-      "model": [
-        "356",
-        0
-      ],
-      "positive": [
-        "357",
-        0
-      ],
-      "negative": [
-        "358",
-        0
-      ],
-      "latent_image": [
-        "361",
-        0
-      ]
-    },
-    "class_type": "KSampler",
-    "_meta": {
-      "title": "K采样器"
-    }
-  },
   "364": {
     "inputs": {
       "samples": [
-        "362",
+        "471",
         0
       ],
       "vae": [
@@ -128,54 +95,12 @@
       "title": "VAE解码"
     }
   },
-  "368": {
-    "inputs": {
-      "prompt": "@kani biimu, natsu \\(blue archive\\), loli, "
-    },
-    "class_type": "CR Prompt Text",
-    "_meta": {
-      "title": "画师串"
-    }
-  },
-  "385": {
-    "inputs": {
-      "prompt": "masterpiece, very aesthetic, best quality, score_9, score_8，highres, absurdres, anime screenshot, official art，"
-    },
-    "class_type": "CR Prompt Text",
-    "_meta": {
-      "title": "质量(不动)"
-    }
-  },
-  "387": {
-    "inputs": {
-      "inputcount": 3,
-      "delimiter": " ",
-      "return_list": false,
-      "Update inputs": null,
-      "string_1": [
-        "368",
-        0
-      ],
-      "string_2": [
-        "385",
-        0
-      ],
-      "string_3": [
-        "446",
-        0
-      ]
-    },
-    "class_type": "JoinStringMulti",
-    "_meta": {
-      "title": "合并字符串（多重）"
-    }
-  },
   "428": {
     "inputs": {
-      "lora_name": "anima-turbo-lora-v0.2.safetensors",
-      "strength_model": 1,
+      "lora_name": "Anima/anima-turbo-lora-v0.2.safetensors",
+      "strength_model": 0.3,
       "model": [
-        "451",
+        "348",
         0
       ]
     },
@@ -197,77 +122,112 @@
       "title": "保存图像"
     }
   },
-  "446": {
+  "454": {
     "inputs": {
-      "model": "deepseek-v4-pro",
-      "thinking": "disabled",
-      "prompt": [
-        "449",
-        0
-      ]
+      "unet_name": "Anima/anima-aesthetic-v1.1_1.safetensors",
+      "weight_dtype": "default"
     },
-    "class_type": "DeepSeekANIMA3",
+    "class_type": "UNETLoader",
     "_meta": {
-      "title": "DeepSeek -> ANIMA3 Prompt"
+      "title": "UNet加载器"
     }
   },
-  "447": {
+  "455": {
     "inputs": {
-      "text_0": "1girl, solo, pink hair, red eyes, side bun, yellow hair tie, flat chest, yellow yukata, yellow pattern, disheveled clothes, breasts out, ahegao, cowgirl position, straddling, sex, penis in vagina, stomach bulge, bedroom",
-      "text": [
-        "446",
-        0
-      ]
-    },
-    "class_type": "ShowText|pysssss",
-    "_meta": {
-      "title": "Show Text 🐍"
-    }
-  },
-  "449": {
-    "inputs": {
-      "prompt": ""
-    },
-    "class_type": "CR Prompt Text",
-    "_meta": {
-      "title": "简单描述提示词"
-    }
-  },
-  "450": {
-    "inputs": {
-      "text": "copyright,lowres,bad,error,fewer,extra,missing,worst quality,jpeg artifacts,bad quality,watermark,signature,extra digits,artistic error,username,abstract,artist logo,artist name,signature,bad fingers,bad hand,patreon username,patreon logo,web address,simple background,(worst quality, low quality:1.4),(deformed, distorted, disfigured:1.3),poorly drawn hands,extra fingers,mutated,lowres,text,watermark,signature,messy drawing,doll,plastic skin,fat,abs,old,2girl,fat girl,very long leg,very long thigh,pale skin,\nbad anatomy,inverted limbs,missing leg,missing arm,extra leg,extra arm,crowd,anime, cartoon, 2d, illustration, drawing, painting, flat color, deformed, bad anatomy, (anime style:1.4), (2d:1.3),sharp teeth,expressionless,Mosaic，"
-    },
-    "class_type": "CLIPTextEncode",
-    "_meta": {
-      "title": "CLIP Text Encode (Negative Prompt)"
-    }
-  },
-  "451": {
-    "inputs": {
-      "lora_name": "anima-base-1-masterpiece-v51.safetensors",
-      "strength_model": 0.5,
+      "shift": 3,
       "model": [
-        "452",
+        "454",
         0
       ]
     },
-    "class_type": "LoraLoaderModelOnly",
+    "class_type": "ModelSamplingAuraFlow",
     "_meta": {
-      "title": "LoRA加载器（仅模型）"
+      "title": "采样算法（AuraFlow）"
     }
   },
-  "452": {
+  "456": {
     "inputs": {
-      "lora_name": "anima-highres-aesthetic-boost.safetensors",
-      "strength_model": 0.5,
+      "seed": 0,
+      "steps": 30,
+      "cfg": 4,
+      "sampler_name": "er_sde",
+      "scheduler": "simple",
+      "denoise": 1,
       "model": [
-        "348",
+        "455",
+        0
+      ],
+      "positive": [
+        "357",
+        0
+      ],
+      "negative": [
+        "358",
+        0
+      ],
+      "latent_image": [
+        "361",
         0
       ]
     },
-    "class_type": "LoraLoaderModelOnly",
+    "class_type": "KSampler",
     "_meta": {
-      "title": "LoRA加载器（仅模型）"
+      "title": "K采样器"
+    }
+  },
+  "471": {
+    "inputs": {
+      "seed": 2,
+      "steps": 6,
+      "cfg": 5,
+      "sampler_name": "er_sde",
+      "scheduler": "simple",
+      "denoise": 0.7,
+      "model": [
+        "356",
+        0
+      ],
+      "positive": [
+        "357",
+        0
+      ],
+      "negative": [
+        "358",
+        0
+      ],
+      "latent_image": [
+        "472",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "472": {
+    "inputs": {
+      "upscale_method": "bicubic",
+      "scale_by": 2,
+      "samples": [
+        "456",
+        0
+      ]
+    },
+    "class_type": "LatentUpscaleBy",
+    "_meta": {
+      "title": "缩放Latent（比例）"
+    }
+  },
+  "484": {
+    "inputs": {
+      "width": 1024,
+      "height": 1536,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "尺寸"
     }
   }
 }

@@ -41,7 +41,7 @@ def _load_workflow() -> Dict[str, Any]:
     # 1. Try env var (backward compat)
     env_path = (os.environ.get("COMFYUI_WORKFLOW_PATH") or "").strip()
     if env_path:
-        with open(env_path, "r", encoding="utf-8") as fh:
+        with open(env_path, "r") as fh:
             return json.load(fh)
 
     # 2. Auto-discover from plugin directory
@@ -54,7 +54,7 @@ def _load_workflow() -> Dict[str, Any]:
         )
     path = json_files[0]
     logger.info("ComfyUI: auto-discovered workflow %s", path.name)
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, "r") as fh:
         return json.load(fh)
 
 
@@ -62,30 +62,17 @@ def _inject_params(
     workflow: Dict[str, Any],
     prompt: str,
 ) -> Dict[str, Any]:
-    """Inject prompt, DeepSeek API key, and random seed.
+    """Replace __REPLACE_THE__PROMPT__ placeholder with the generated prompt.
 
-    Only replaces the CR Prompt Text node that feeds into DeepSeekANIMA3.
-    Quality tags and artist strings are left untouched.
-    Randomizes KSampler seed so every generation is unique.
+    The workflow JSON uses __REPLACE_THE__PROMPT__ as a placeholder in the
+    positive CLIPTextEncode node. Quality tags and artist strings preceding
+    the placeholder are left untouched.
     """
     for node_id, node in workflow.items():
-        class_type = node.get("class_type", "")
-
-        if class_type == "DeepSeekANIMA3":
-            api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-            if api_key:
-                node["inputs"]["api_key"] = api_key
-            # Find the CR Prompt Text node feeding into this DeepSeekANIMA3
-            prompt_input = node["inputs"].get("prompt", [])
-            if isinstance(prompt_input, list) and len(prompt_input) == 2:
-                src_id = str(prompt_input[0])
-                src_node = workflow.get(src_id)
-                if src_node and src_node.get("class_type") == "CR Prompt Text":
-                    src_node["inputs"]["prompt"] = prompt
-
-        elif class_type == "KSampler":
-            import random
-            node["inputs"]["seed"] = random.randint(0, 2**63 - 1)
+        inputs = node.get("inputs", {})
+        for key, value in inputs.items():
+            if isinstance(value, str) and "__REPLACE_THE__PROMPT__" in value:
+                inputs[key] = value.replace("__REPLACE_THE__PROMPT__", prompt)
 
     return workflow
 
@@ -360,9 +347,8 @@ class ComfyUIImageGenProvider(ImageGenProvider):
             save_path.write_bytes(img_resp.content)
 
             logger.info(
-                "ComfyUI done: prompt_id=%s seed=%s image=%s",
+                "ComfyUI done: prompt_id=%s image=%s",
                 prompt_id,
-                workflow.get("362", {}).get("inputs", {}).get("seed", "?"),
                 save_path,
             )
 
