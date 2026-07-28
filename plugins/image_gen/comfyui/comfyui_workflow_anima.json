@@ -1,0 +1,219 @@
+{
+  "348": {
+    "inputs": {
+      "unet_name": "Anima/anima-base-v1.0_1.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNet加载器"
+    }
+  },
+  "349": {
+    "inputs": {
+      "clip_name": "Anima/qwen_3_06b_base.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "加载CLIP"
+    }
+  },
+  "356": {
+    "inputs": {
+      "shift": 1.73,
+      "model": [
+        "348",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "采样算法（AuraFlow）"
+    }
+  },
+  "357": {
+    "inputs": {
+      "text": "masterpiece, aesthetic, best quality, good quality, score_9, score_8, __REPLACE_THE_PROMPT__",
+      "clip": [
+        "349",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "358": {
+    "inputs": {
+      "text": "sweat, wet, worst quality, low quality, score_1, score_2, score_3, artist name, low resolution, poor quality, appearing pixelated, blurry, jpeg artifacts, small figures, chibi characters, dolls, fumo dolls, plush toys, error, scan lines, unfinished sketch, simple background, abstract background, monochrome background, incorrect anatomy, featuring bad proportions, bad perspective, ugly, deformed body, bad hands, bad feet, fused fingers, missing fingers, extra limbs, twisted deformities, flexible deformities, four fingers, six fingers, four toes, six toes, artist name, watermarks, signatures, logos, censorship bars, mosaics, low score ai-generated",
+      "clip": [
+        "349",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "359": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "361": {
+    "inputs": {
+      "width": 512,
+      "height": 768,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "尺寸"
+    }
+  },
+  "364": {
+    "inputs": {
+      "samples": [
+        "471",
+        0
+      ],
+      "vae": [
+        "359",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "439": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "364",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "454": {
+    "inputs": {
+      "unet_name": "Anima/anima-base-v1.0_1.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNet加载器"
+    }
+  },
+  "455": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "454",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "采样算法（AuraFlow）"
+    }
+  },
+  "456": {
+    "inputs": {
+      "seed": 0,
+      "steps": 40,
+      "cfg": 5,
+      "sampler_name": "er_sde",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "455",
+        0
+      ],
+      "positive": [
+        "357",
+        0
+      ],
+      "negative": [
+        "358",
+        0
+      ],
+      "latent_image": [
+        "361",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "471": {
+    "inputs": {
+      "seed": 0,
+      "steps": 8,
+      "cfg": 5,
+      "sampler_name": "er_sde",
+      "scheduler": "simple",
+      "denoise": 0.7,
+      "model": [
+        "356",
+        0
+      ],
+      "positive": [
+        "357",
+        0
+      ],
+      "negative": [
+        "358",
+        0
+      ],
+      "latent_image": [
+        "472",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "472": {
+    "inputs": {
+      "upscale_method": "bicubic",
+      "scale_by": 2,
+      "samples": [
+        "456",
+        0
+      ]
+    },
+    "class_type": "LatentUpscaleBy",
+    "_meta": {
+      "title": "缩放Latent（比例）"
+    }
+  },
+  "484": {
+    "inputs": {
+      "width": 1024,
+      "height": 1536,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "尺寸"
+    }
+  }
+}

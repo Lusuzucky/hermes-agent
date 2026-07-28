@@ -1,0 +1,4 @@
+name: gptsovits
+version: 1.0.0
+description: "GPT-SoVITS TTS backend via REST API (10.10.10.5:9880)"
+author: user

@@ -96,10 +96,12 @@ def _thread_metadata_for_source(source, reply_to_message_id: str | None = None) 
     return metadata
 
 
-def _mark_notify_metadata(metadata: dict | None) -> dict:
+def _mark_notify_metadata(metadata: dict | None, message_category: str | None = None) -> dict:
     """Clone metadata and mark a user-visible reply as notify-worthy."""
     notify_metadata = dict(metadata) if metadata else {}
     notify_metadata["notify"] = True
+    if message_category:
+        notify_metadata["message_category"] = message_category
     return notify_metadata
 
 
@@ -5501,11 +5503,17 @@ class BasePlatformAdapter(ABC):
                     len(_text),
                     event.source.chat_id,
                 )
+                _cmd_meta = _mark_notify_metadata(
+                    thread_meta,
+                    message_category="agent" if cmd == "retry" else None,
+                )
+                if cmd != "retry":
+                    _cmd_meta["non_conversational"] = True
                 _r = await self._send_with_retry(
                     chat_id=event.source.chat_id,
                     content=_text,
                     reply_to=_reply_anchor_for_event(event),
-                    metadata=_mark_notify_metadata(thread_meta),
+                    metadata=_cmd_meta,
                 )
                 if _eph_ttl > 0 and _r.success and _r.message_id:
                     self._schedule_ephemeral_delete(
@@ -5617,11 +5625,17 @@ class BasePlatformAdapter(ABC):
                     response = await self._message_handler(event)
                     _text, _eph_ttl = self._unwrap_ephemeral(response)
                     if _text:
+                        _cmd_meta = _mark_notify_metadata(
+                            _thread_meta,
+                            message_category="agent" if cmd == "retry" else None,
+                        )
+                        if cmd != "retry":
+                            _cmd_meta["non_conversational"] = True
                         _r = await self._send_with_retry(
                             chat_id=event.source.chat_id,
                             content=_text,
                             reply_to=_reply_anchor_for_event(event),
-                            metadata=_mark_notify_metadata(_thread_meta),
+                            metadata=_cmd_meta,
                         )
                         if _eph_ttl > 0 and _r.success and _r.message_id:
                             self._schedule_ephemeral_delete(
@@ -5928,7 +5942,17 @@ class BasePlatformAdapter(ABC):
                 # the existing notify=True marker. Clone once so typing/status
                 # metadata stays unmarked and progress bubbles remain
                 # thread-strict.
-                _final_thread_metadata = _mark_notify_metadata(_thread_metadata)
+                _is_command_response = bool(event.get_command())
+                _final_thread_metadata = _mark_notify_metadata(
+                    _thread_metadata,
+                    message_category="agent" if not _is_command_response else None,
+                )
+                if _is_command_response:
+                    # /retry regenerates conversational output that should
+                    # be split; all other commands are system-level and
+                    # should be delivered as-is without splitting.
+                    if event.get_command() != "retry":
+                        _final_thread_metadata["non_conversational"] = True
 
                 # Auto-TTS: if voice message, generate audio FIRST (before sending text)
                 # Gated via ``_should_auto_tts_for_chat``: fires when the chat has
