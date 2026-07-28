@@ -371,19 +371,6 @@ def build_top_level_parser():
             "hooks_auto_accept: in config.yaml)."
         ),
     )
-    _inherited_flag(
-        chat_parser,
-        "--temperature",
-        type=float,
-        default=argparse.SUPPRESS,
-        help="Temperature for inference sampling (0.0–2.0). Higher = more random.",
-    )
-    chat_parser.add_argument(
-        "--top-p",
-        type=float,
-        default=argparse.SUPPRESS,
-        help="Top-p (nucleus) sampling parameter (0.0–1.0).",
-    )
     chat_parser.add_argument(
         "--checkpoints",
         action="store_true",

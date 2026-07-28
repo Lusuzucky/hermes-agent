@@ -4578,9 +4578,11 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         Always uses the session's primary model/provider.  If `/fast` is
         enabled and the model supports Priority Processing / Anthropic fast
         mode, attach `request_overrides` so the API call is marked
-        accordingly.
+        accordingly.  Merges ``model.inference_params`` from config.yaml
+        (temperature, top_p, etc.) into request_overrides on every turn.
         """
         from hermes_cli.models import resolve_fast_mode_overrides
+        from hermes_cli.runtime_provider import _get_model_config
 
         runtime = {
             "api_key": runtime_kwargs.get("api_key"),
@@ -4608,15 +4610,25 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         }
 
         service_tier = getattr(self, "_service_tier", None)
-        if not service_tier:
+        if service_tier:
+            try:
+                overrides = resolve_fast_mode_overrides(route["model"])
+            except Exception:
+                overrides = None
+            route["request_overrides"] = overrides or {}
+        else:
             route["request_overrides"] = {}
-            return route
 
+        # Merge model.inference_params from config.yaml (temperature, top_p, etc.)
         try:
-            overrides = resolve_fast_mode_overrides(route["model"])
+            model_cfg = _get_model_config()
+            if isinstance(model_cfg, dict):
+                cfg_ip = model_cfg.get("inference_params")
+                if isinstance(cfg_ip, dict):
+                    route["request_overrides"].update(cfg_ip)
         except Exception:
-            overrides = None
-        route["request_overrides"] = overrides or {}
+            pass
+
         return route
 
     def _sync_session_model_from_agent(self, session_id: str, agent: Any) -> None:

@@ -494,7 +494,6 @@ def init_agent(
     reasoning_config: Dict[str, Any] = None,
     service_tier: str = None,
     request_overrides: Dict[str, Any] = None,
-    inference_params: Dict[str, Any] = None,
     prefill_messages: List[Dict[str, Any]] = None,
     platform: str = None,
     user_id: str = None,
@@ -825,12 +824,6 @@ def init_agent(
     agent.reasoning_config = reasoning_config  # None = use default (medium for OpenRouter)
     agent.service_tier = service_tier
     agent.request_overrides = dict(request_overrides or {})
-    # Merge user-configured inference_params (model.inference_params in config.yaml)
-    # into request_overrides so they flow through to API kwargs. CLI flags like
-    # --temperature / --top-p also land here via the same merge.
-    _inference_params = dict(inference_params or {}) if inference_params else {}
-    if _inference_params:
-        agent.request_overrides.update(_inference_params)
     agent.prefill_messages = prefill_messages or []  # Prefilled conversation turns
     agent._force_ascii_payload = False
     
