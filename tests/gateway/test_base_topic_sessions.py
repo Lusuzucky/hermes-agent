@@ -137,7 +137,7 @@ class TestBasePlatformTopicSessions:
                 "chat_id": "-1001",
                 "content": "ack",
                 "reply_to": None,
-                "metadata": {"thread_id": "17585", "notify": True},
+                "metadata": {"thread_id": "17585", "notify": True, "message_category": "agent"},
             }
         ]
         assert typing_calls == [
@@ -329,7 +329,7 @@ class TestTelegramAutoTtsCaptionDelivery:
                 "chat_id": "-1001",
                 "content": long_reply,
                 "reply_to": None,
-                "metadata": {"thread_id": "17585", "notify": True},
+                "metadata": {"thread_id": "17585", "notify": True, "message_category": "agent"},
             }
         ]
 
@@ -358,6 +358,6 @@ class TestTelegramAutoTtsCaptionDelivery:
                 "chat_id": "-1001",
                 "content": "Short reply",
                 "reply_to": None,
-                "metadata": {"thread_id": "17585", "notify": True},
+                "metadata": {"thread_id": "17585", "notify": True, "message_category": "agent"},
             }
         ]

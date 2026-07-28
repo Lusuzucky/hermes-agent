@@ -214,7 +214,7 @@ class TestHandleVisionAnalyze:
             call_args = mock_tool.call_args
             full_prompt = call_args[0][1]  # second positional arg
             assert "Describe the cat" in full_prompt
-            assert "Fully describe and explain" in full_prompt
+            assert "完整描述并解释这张图片中的所有内容" in full_prompt
 
     @pytest.mark.asyncio
     async def test_uses_auxiliary_vision_model_env(self):

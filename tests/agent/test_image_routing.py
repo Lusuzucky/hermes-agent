@@ -418,7 +418,7 @@ class TestBuildNativeContentParts:
         # isn't just pixels, and the path hint is appended after.
         assert parts[0]["type"] == "text"
         assert parts[0]["text"] == (
-            f"What do you see in this image?\n\n[Image attached at: {img}]"
+            f"你在这张图片中看到了什么？\n\n[Image attached at: {img}]"
         )
         assert parts[1]["type"] == "image_url"
 
@@ -729,7 +729,7 @@ class TestBuildNativeContentPartsURLs:
             "", [], image_urls=["https://example.com/a.png"]
         )
         assert parts[0]["type"] == "text"
-        assert parts[0]["text"].startswith("What do you see in this image?")
+        assert parts[0]["text"].startswith("你在这张图片中看到了什么？")
 
 
 # ─── Format compatibility: transcode non-universal formats to PNG ────────────
