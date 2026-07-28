@@ -4089,6 +4089,8 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin, CLIBillingMixin):
         checkpoints: bool = False,
         pass_session_id: bool = False,
         ignore_rules: bool = False,
+        temperature: float = None,
+        top_p: float = None,
     ):
         """
         Initialize the Hermes CLI.
@@ -4250,6 +4252,20 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin, CLIBillingMixin):
             self.max_tokens = _mt if isinstance(_mt, int) else None
         else:
             self.max_tokens = None
+        # Read inference_params from config (model.inference_params in config.yaml).
+        # CLI --temperature / --top-p override individual keys within this dict.
+        _inference_params = {}
+        if isinstance(_model_config, dict):
+            _cfg_ip = _model_config.get("inference_params")
+            if isinstance(_cfg_ip, dict):
+                _inference_params.update(_cfg_ip)
+        _cli_temp = temperature
+        if _cli_temp is not None:
+            _inference_params["temperature"] = float(_cli_temp)
+        _cli_top_p = top_p
+        if _cli_top_p is not None:
+            _inference_params["top_p"] = float(_cli_top_p)
+        self.inference_params = _inference_params or None
         # Auto-detect model from local server if still on default
         if self.model == _DEFAULT_CONFIG_MODEL:
             _base_url = (_model_config.get("base_url") or "") if isinstance(_model_config, dict) else ""
@@ -12772,6 +12788,7 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin, CLIBillingMixin):
             model_override=turn_route["model"],
             runtime_override=turn_route["runtime"],
             request_overrides=turn_route.get("request_overrides"),
+            inference_params=getattr(self, "inference_params", None),
         ):
             return None
         agent = self.agent
@@ -16752,6 +16769,8 @@ def main(
     pass_session_id: bool = False,
     ignore_user_config: bool = False,
     ignore_rules: bool = False,
+    temperature: float = None,
+    top_p: float = None,
 ):
     """
     Hermes Agent CLI - Interactive AI Assistant
@@ -16887,6 +16906,8 @@ def main(
         checkpoints=checkpoints,
         pass_session_id=pass_session_id,
         ignore_rules=ignore_rules,
+        temperature=temperature,
+        top_p=top_p,
     )
 
     if parsed_skills:
@@ -17131,6 +17152,7 @@ def main(
                         model_override=turn_route["model"],
                         runtime_override=turn_route["runtime"],
                         request_overrides=turn_route.get("request_overrides"),
+                        inference_params=getattr(cli, "inference_params", None),
                     ):
                         cli.agent.quiet_mode = True
                         cli.agent.suppress_status_output = True
