@@ -39,7 +39,7 @@ import mimetypes
 import os
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
@@ -172,6 +172,73 @@ def _resolve_qq_secret(name: str, default: str = "") -> str:
     return val if val is not None else default
 
 
+def _env_bool(name: str) -> bool:
+    """Read a boolean from an environment variable."""
+    val = os.getenv(name, "").strip().lower()
+    return val in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str) -> int:
+    """Read an integer from an environment variable, or 0 if missing/invalid."""
+    try:
+        return int(os.getenv(name, ""))
+    except (ValueError, TypeError):
+        return 0
+
+
+# Extension sets for media routing in send().
+# These partition MEDIA_DELIVERY_EXTS into the platform-native delivery methods.
+_IMG_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff', '.svg'}
+_VID_EXTS = {'.mp4', '.mov', '.avi', '.mkv', '.webm'}
+_AUDIO_EXTS = {'.mp3', '.ogg', '.wav', '.m4a', '.aac', '.flac', '.opus'}
+
+
+def _split_preserving_fences(text: str) -> list[str]:
+    """Split text on ``\\n\\n``, keeping ```fenced blocks``` intact.
+
+    Uses a simple state machine: tracks whether we're inside a fenced
+    code block (odd number of ``` markers seen).  Paragraphs inside a
+    fence are merged back together so reasoning blocks don't get torn apart.
+    """
+    raw = text.split('\n\n')
+    result: list[str] = []
+    in_fence = False
+    buf: list[str] = []
+
+    for para in raw:
+        stripped = para.strip()
+        if not stripped:
+            continue
+        fence_count = stripped.count('```')
+
+        if not in_fence:
+            if fence_count % 2 == 1:
+                in_fence = True
+                buf.append(stripped)
+            else:
+                result.append(stripped)
+        else:
+            buf.append(stripped)
+            if fence_count % 2 == 1:
+                in_fence = False
+                result.append('\n\n'.join(buf))
+                buf = []
+
+    if buf:
+        result.append('\n\n'.join(buf))
+    return result
+
+
+def _write_wol_trigger(mac: str) -> None:
+    """Write MAC address to the WOL trigger file that wol-server.py watches."""
+    WOL_TRIGGER = "/tmp/wol_trigger"
+    try:
+        with open(WOL_TRIGGER, "w", encoding="utf-8") as f:
+            f.write(mac + "\n")
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # QQAdapter
 # ---------------------------------------------------------------------------
@@ -185,6 +252,7 @@ class QQAdapter(BasePlatformAdapter):
     MAX_MESSAGE_LENGTH = MAX_MESSAGE_LENGTH
     _TYPING_INPUT_SECONDS = 60  # input_notify duration reported to QQ
     _TYPING_DEBOUNCE_SECONDS = 50  # refresh before it expires
+    COALESCE_DELAY: float = 10.0  # seconds; 0 = disabled; overridden by QQ_COALESCE_DELAY_SECONDS
 
     @property
     def _log_tag(self) -> str:
@@ -289,6 +357,67 @@ class QQAdapter(BasePlatformAdapter):
         # register a custom handler.
         self._interaction_callback = self._default_interaction_dispatch
 
+        # Idle nudge: proactively reach out after conversation silence.
+        # Enable via env var QQ_IDLE_NUDGE_ENABLED=true.
+        self._idle_nudge_enabled = _env_bool("QQ_IDLE_NUDGE_ENABLED") or bool(
+            extra.get("idle_nudge_enabled", False)
+        )
+        self._idle_nudge_min_minutes = max(
+            1,
+            _env_int("QQ_IDLE_NUDGE_MIN_MINUTES")
+            or int(extra.get("idle_nudge_min_minutes", 0))
+            or 20,
+        )
+        self._idle_nudge_max_minutes = max(
+            self._idle_nudge_min_minutes + 1,
+            _env_int("QQ_IDLE_NUDGE_MAX_MINUTES")
+            or int(extra.get("idle_nudge_max_minutes", 0))
+            or 90,
+        )
+        self._idle_nudge_prompt = (
+            os.getenv("QQ_IDLE_NUDGE_PROMPT", "").strip()
+            or str(extra.get("idle_nudge_prompt", "")).strip()
+            or (
+                "（系统提示：请按照 qq-idle-nudge 策略主动联系用户。"
+                "选择策略中合适的方向，表达完整再停。不要解释你在执行策略，直接行动。"
+                "⚠️ 防重复：扫描对话记录，如果上次nudge用户没回复，必须换新方向，"
+                "禁止连续两次用同一方向。"
+                "如果当前时段不适合打扰用户（深夜、用户可能忙等），"
+                "只回复 __SILENT__（注意是双下划线）即可跳过本轮，不会发送任何消息给用户。）"
+            )
+        )
+        self._idle_nudge_max_consecutive = max(
+            0,
+            _env_int("QQ_IDLE_NUDGE_MAX_CONSECUTIVE")
+            or int(extra.get("idle_nudge_max_consecutive", 0))
+            or 3,
+        )
+        self._last_user_activity: Dict[str, float] = {}
+        self._idle_nudge_task: Optional[asyncio.Task] = None
+        self._idle_nudge_thresholds: Dict[str, float] = {}
+        self._idle_nudge_last_sent: Dict[str, float] = {}
+        self._idle_nudge_consecutive: Dict[str, int] = {}
+
+        # WOL (Wake-on-LAN) config
+        # ON by default whenever WOL_MAC is set; set WOL_ENABLED=false to disable.
+        self._wol_mac = os.getenv("WOL_MAC", "").strip()
+        _wol_env = os.getenv("WOL_ENABLED")
+        self._wol_enabled = (
+            _env_bool("WOL_ENABLED") if _wol_env is not None else bool(self._wol_mac)
+        )
+        self._wol_pc_ip = os.getenv("PC_IP", "10.10.10.5").strip()
+        self._wol_pc_port = int(os.getenv("PC_HEALTH_PORT", "8188"))
+
+        # Message coalescing: accumulate rapid successive messages
+        _coalesce_raw = os.getenv("QQ_COALESCE_DELAY_SECONDS", "").strip()
+        if _coalesce_raw:
+            try:
+                self.COALESCE_DELAY = max(0.0, float(_coalesce_raw))
+            except ValueError:
+                pass
+        self._coalesce_timers: Dict[str, asyncio.Task] = {}
+        self._coalesce_events: Dict[str, MessageEvent] = {}
+
     # ------------------------------------------------------------------
     # Properties
     # ------------------------------------------------------------------
@@ -361,6 +490,19 @@ class QQAdapter(BasePlatformAdapter):
             # 4. Start listeners
             self._listen_task = asyncio.create_task(self._listen_loop())
             self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+
+            # 5. Start idle nudge loop (if enabled)
+            if self._idle_nudge_enabled:
+                self._idle_nudge_task = asyncio.create_task(
+                    self._idle_nudge_loop()
+                )
+                logger.info(
+                    "[%s] Idle nudge enabled: %d–%dmin range",
+                    self._log_tag,
+                    self._idle_nudge_min_minutes,
+                    self._idle_nudge_max_minutes,
+                )
+
             self._mark_connected()
             logger.info("[%s] Connected", self._log_tag)
             return True
@@ -392,6 +534,17 @@ class QQAdapter(BasePlatformAdapter):
             except asyncio.CancelledError:
                 pass
             self._heartbeat_task = None
+
+        # Cancel idle nudge task
+        if self._idle_nudge_task:
+            self._idle_nudge_task.cancel()
+            self._idle_nudge_task = None
+
+        # Cancel coalesce timers
+        for t in self._coalesce_timers.values():
+            t.cancel()
+        self._coalesce_timers.clear()
+        self._coalesce_events.clear()
 
         await self._cleanup()
         self._release_platform_lock()
@@ -952,11 +1105,236 @@ class QQAdapter(BasePlatformAdapter):
     # Inbound message handling
     # ------------------------------------------------------------------
 
+    def _wake_pc(self) -> None:
+        """Fire-and-forget WOL trigger — write MAC to trigger file in a daemon thread."""
+        if not self._wol_enabled:
+            return
+        mac = self._wol_mac
+        if not mac:
+            return
+        import threading
+
+        threading.Thread(target=_write_wol_trigger, args=(mac,), daemon=True).start()
+
+    async def _wake_pc_and_wait(self, timeout: int = 90) -> bool:
+        """Wake PC then poll TCP health-check port until reachable or timeout."""
+        if not self._wol_enabled:
+            return False
+        mac = self._wol_mac
+        if not mac:
+            return False
+        host = self._wol_pc_ip
+        port = self._wol_pc_port
+
+        _write_wol_trigger(mac)
+
+        import socket
+
+        def _wait() -> bool:
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                try:
+                    sock = socket.create_connection((host, port), timeout=3)
+                    sock.close()
+                    return True
+                except OSError:
+                    pass
+                time.sleep(3)
+            return False
+
+        ok = await asyncio.to_thread(_wait)
+        if ok:
+            logger.info("[%s] PC %s:%d is now reachable", self._log_tag, host, port)
+        else:
+            logger.warning(
+                "[%s] PC %s:%d did not come online within %ds",
+                self._log_tag, host, port, timeout,
+            )
+        return ok
+
     async def handle_message(self, event: MessageEvent) -> None:
-        """Cache the last message ID per chat, then delegate to base."""
+        """Cache the last message ID, then coalesce or dispatch."""
         if event.message_id and event.source.chat_id:
             self._last_msg_id[event.source.chat_id] = event.message_id
-        await super().handle_message(event)
+        # Track user activity for idle nudge (skip internal/synthetic events)
+        chat_id = event.source.chat_id if event.source else None
+        if chat_id and not getattr(event, "internal", False):
+            self._last_user_activity[chat_id] = time.time()
+            # Reset idle nudge consecutive counter — user replied
+            self._idle_nudge_consecutive.pop(chat_id, None)
+
+        # Slash commands bypass coalescing immediately
+        if event.is_command():
+            await self._cancel_coalesce(event.source.chat_id)
+            await super().handle_message(event)
+            return
+
+        if not chat_id:
+            await super().handle_message(event)
+            return
+
+        # Cancel existing timer and merge text into the pending event
+        if chat_id in self._coalesce_timers:
+            self._coalesce_timers[chat_id].cancel()
+            pending = self._coalesce_events.get(chat_id)
+            if pending is not None and event.text:
+                pending.text = (pending.text + "\n" + event.text).strip()
+                pending.message_id = event.message_id
+        else:
+            # New coalesce window: fire-and-forget WOL to wake the PC
+            self._wake_pc()
+            self._coalesce_events[chat_id] = event
+
+        # Start (or restart) the timer
+        self._coalesce_timers[chat_id] = asyncio.create_task(
+            self._coalesce_dispatch(chat_id)
+        )
+
+    # ------------------------------------------------------------------
+    # Message coalescing: accumulate rapid successive messages
+    # ------------------------------------------------------------------
+
+    async def _coalesce_dispatch(self, chat_id: str) -> None:
+        """Wait for the coalesce window, then dispatch the accumulated event."""
+        if self.COALESCE_DELAY <= 0:
+            event = self._coalesce_events.pop(chat_id, None)
+            self._coalesce_timers.pop(chat_id, None)
+            if event is not None:
+                await super().handle_message(event)
+            return
+        try:
+            await asyncio.sleep(self.COALESCE_DELAY)
+        except asyncio.CancelledError:
+            return
+        event = self._coalesce_events.pop(chat_id, None)
+        self._coalesce_timers.pop(chat_id, None)
+        if event is not None:
+            await super().handle_message(event)
+
+    async def _cancel_coalesce(self, chat_id: Optional[str]) -> None:
+        """Cancel any pending coalesce timer for a chat."""
+        if chat_id and chat_id in self._coalesce_timers:
+            self._coalesce_timers[chat_id].cancel()
+            self._coalesce_timers.pop(chat_id, None)
+            self._coalesce_events.pop(chat_id, None)
+
+    # ------------------------------------------------------------------
+    # Idle nudge: proactively reach out after conversation silence
+    # ------------------------------------------------------------------
+
+    async def _idle_nudge_loop(self) -> None:
+        """Background task that checks for idle chats and sends proactive nudges.
+
+        Runs every 30 seconds. Each chat gets a random idle threshold in
+        [min_minutes, max_minutes] range, re-randomized after each nudge.
+
+        Night quiet hours (Beijing 02:00–07:30): resets idle timers silently.
+        """
+        import random as _random
+
+        NIGHT_START = 2.0   # 02:00 Beijing
+        NIGHT_END = 7.5     # 07:30 Beijing
+        BEIJING = timezone(timedelta(hours=8))
+        CHECK_INTERVAL = 30
+
+        while self._running:
+            try:
+                await asyncio.sleep(CHECK_INTERVAL)
+            except asyncio.CancelledError:
+                return
+
+            if not self._idle_nudge_enabled:
+                continue
+
+            now = time.time()
+            min_s = self._idle_nudge_min_minutes * 60
+            max_s = self._idle_nudge_max_minutes * 60
+
+            # Night quiet hours (Beijing time) — reset all timers
+            beijing_now = datetime.now(BEIJING)
+            beijing_hour = beijing_now.hour + beijing_now.minute / 60.0
+            if NIGHT_START <= beijing_hour < NIGHT_END:
+                for chat_id in list(self._last_user_activity.keys()):
+                    self._last_user_activity[chat_id] = now
+                    self._idle_nudge_thresholds[chat_id] = _random.uniform(
+                        min_s, max_s
+                    )
+                continue
+
+            beijing_str = beijing_now.strftime("%H:%M")
+
+            for chat_id, last_activity in list(self._last_user_activity.items()):
+                # Skip chats with an active auto-continue cycle
+                if chat_id in getattr(self, '_auto_continue_timers', {}):
+                    continue
+
+                # Get or create a random threshold for this chat
+                threshold = self._idle_nudge_thresholds.get(chat_id)
+                if threshold is None:
+                    threshold = _random.uniform(min_s, max_s)
+                    self._idle_nudge_thresholds[chat_id] = threshold
+
+                idle_seconds = now - last_activity
+                if idle_seconds < threshold:
+                    continue
+
+                # Avoid repeat nudges too close together
+                last_nudge = self._idle_nudge_last_sent.get(chat_id, 0)
+                if now - last_nudge < min_s:
+                    continue
+
+                # Consecutive nudge cap — stop after N unanswered nudges
+                if self._idle_nudge_max_consecutive > 0:
+                    streak = self._idle_nudge_consecutive.get(chat_id, 0)
+                    if streak >= self._idle_nudge_max_consecutive:
+                        continue
+                    self._idle_nudge_consecutive[chat_id] = streak + 1
+
+                self._idle_nudge_last_sent[chat_id] = now
+                self._last_user_activity[chat_id] = now
+                self._idle_nudge_thresholds[chat_id] = _random.uniform(min_s, max_s)
+
+                # Map internal QQ type -> gateway chat_type for session-key matching
+                _internal_type = self._chat_type_map.get(chat_id, "dm")
+                _type_map = {"c2c": "dm", "group": "group", "guild": "group", "dm": "dm"}
+                chat_type = _type_map.get(_internal_type, "dm")
+                source = self.build_source(
+                    chat_id=chat_id,
+                    user_id=chat_id,
+                    chat_type=chat_type,
+                )
+                prompt_text = (
+                    f"{self._idle_nudge_prompt}\n"
+                    f"（当前北京时间：{beijing_str}）"
+                )
+                event = MessageEvent(
+                    source=source,
+                    text=prompt_text,
+                    message_type=MessageType.TEXT,
+                    internal=True,
+                    timestamp=datetime.now(timezone.utc),
+                )
+
+                logger.info(
+                    "[%s] Idle nudge #%d: chat=%s idle=%.0fmin beijing=%s "
+                    "(next threshold ~%.0fmin)",
+                    self._log_tag,
+                    self._idle_nudge_consecutive.get(chat_id, 0),
+                    chat_id, idle_seconds / 60,
+                    beijing_str,
+                    self._idle_nudge_thresholds[chat_id] / 60,
+                )
+
+                # Wake PC before dispatching nudge (honcho may be needed)
+                await self._wake_pc_and_wait()
+
+                try:
+                    await self.handle_message(event)
+                except Exception as exc:
+                    logger.error(
+                        "[%s] Idle nudge dispatch failed for %s: %s",
+                        self._log_tag, chat_id, exc,
+                    )
 
     async def _on_message(self, event_type: str, d: Any) -> None:
         """Process an inbound QQ Bot message event."""
@@ -1129,7 +1507,7 @@ class QQAdapter(BasePlatformAdapter):
 
         chat_type = parsed.get("chat_type", "")
         chat_id = parsed.get("chat_id", "")
-        if chat_type == "c2c":
+        if chat_type in {"c2c", "dm"}:
             return bool(chat_id) and operator == chat_id
 
         if chat_type in {"group", "guild"}:
@@ -2475,13 +2853,13 @@ class QQAdapter(BasePlatformAdapter):
             content: str,
             reply_to: Optional[str] = None,
             metadata: Optional[Dict[str, Any]] = None,
+            split_paragraphs: bool = False,
     ) -> SendResult:
         """Send a text or markdown message to a QQ user or group.
 
         Applies format_message(), splits long messages via truncate_message(),
         and retries transient failures with exponential backoff.
         """
-        del metadata
 
         if not self.is_connected:
             if not await self._wait_for_reconnection():
@@ -2489,6 +2867,92 @@ class QQAdapter(BasePlatformAdapter):
 
         if not content or not content.strip():
             return SendResult(success=True)
+
+        # Silent-skip sentinel: agent can suppress delivery entirely.
+        # Used by idle nudge when the agent decides not to disturb the user.
+        if content.strip() == "__SILENT__":
+            return SendResult(success=True)
+
+        # Extract MEDIA:<path> tags before formatting so inline media
+        # attached by tools (TTS, image_generate, etc.) are delivered
+        # as native attachments.  The base dispatch calls extract_media
+        # once on the final response, but send() is also invoked directly
+        # for tool call text and mid-turn messages — those must extract
+        # independently so MEDIA tags are never rendered as visible text.
+        if 'MEDIA:' in content:
+            try:
+                media_files, content = self.extract_media(content)
+                media_files = BasePlatformAdapter.filter_media_delivery_paths(media_files)
+                for media_path, is_voice in media_files:
+                    try:
+                        ext = Path(media_path).suffix.lower()
+                        if is_voice or ext in _AUDIO_EXTS:
+                            await self.send_voice(chat_id, media_path)
+                        elif ext in _IMG_EXTS:
+                            await self.send_image(chat_id, media_path)
+                        elif ext in _VID_EXTS:
+                            await self.send_video(chat_id, media_path)
+                        else:
+                            await self.send_document(chat_id, media_path)
+                    except Exception:
+                        pass
+                if not content.strip():
+                    return SendResult(success=True)
+            except Exception:
+                pass
+
+        # Auto-split multi-paragraph messages into separate short messages
+        # for natural chat-style delivery.  Skip only when metadata explicitly
+        # marks the message as non-conversational (e.g. system command output).
+        _is_system = (metadata or {}).get("non_conversational") if metadata else False
+        if split_paragraphs or not _is_system:
+            paragraphs = _split_preserving_fences(content)
+            if len(paragraphs) > 1:
+                last_result = SendResult(success=True)
+                for para in paragraphs:
+                    if not para.strip():
+                        continue
+                    # Extract and deliver inline MEDIA per paragraph so
+                    # files land next to the text that references them.
+                    if 'MEDIA:' in para:
+                        try:
+                            media_files, para = self.extract_media(para)
+                            media_files = BasePlatformAdapter.filter_media_delivery_paths(media_files)
+                            for media_path, is_voice in media_files:
+                                try:
+                                    ext = Path(media_path).suffix.lower()
+                                    if is_voice or ext in _AUDIO_EXTS:
+                                        await self.send_voice(chat_id, media_path)
+                                    elif ext in _IMG_EXTS:
+                                        await self.send_image(chat_id, media_path)
+                                    elif ext in _VID_EXTS:
+                                        await self.send_video(chat_id, media_path)
+                                    else:
+                                        await self.send_document(chat_id, media_path)
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+                    if not para.strip():
+                        continue
+                    char_count = len(para)
+                    if char_count <= 5:
+                        delay = 1.5
+                    elif char_count <= 10:
+                        delay = 2.5
+                    elif char_count <= 15:
+                        delay = 4.0
+                    else:
+                        delay = 5.0
+                    await asyncio.sleep(delay)
+                    formatted = self.format_message(para)
+                    para_chunks = self.truncate_message(formatted, self.MAX_MESSAGE_LENGTH)
+                    for chunk in para_chunks:
+                        last_result = await self._send_chunk(chat_id, chunk, reply_to)
+                        if not last_result.success:
+                            return last_result
+                        reply_to = None
+                return last_result
 
         formatted = self.format_message(content)
         chunks = self.truncate_message(formatted, self.MAX_MESSAGE_LENGTH)
@@ -2498,7 +2962,6 @@ class QQAdapter(BasePlatformAdapter):
             last_result = await self._send_chunk(chat_id, chunk, reply_to)
             if not last_result.success:
                 return last_result
-            # Only reply_to the first chunk
             reply_to = None
         return last_result
 
@@ -2682,10 +3145,7 @@ class QQAdapter(BasePlatformAdapter):
         return await self.send_with_keyboard(
             chat_id,
             build_approval_text(req),
-            build_approval_keyboard(
-                req.session_key,
-                allow_permanent=getattr(req, "allow_permanent", True),
-            ),
+            build_approval_keyboard(req.session_key),
             reply_to=reply_to,
         )
 
@@ -2707,7 +3167,6 @@ class QQAdapter(BasePlatformAdapter):
             metadata: Optional[Dict[str, Any]] = None,
         allow_permanent: bool = True,
         allow_session: bool = True,
-        smart_denied: bool = False,
     ) -> SendResult:
         """Send a button-based exec-approval prompt for a dangerous command.
 
@@ -2718,8 +3177,6 @@ class QQAdapter(BasePlatformAdapter):
         """
         del metadata  # QQ doesn't have thread_id / DM targeting overrides.
         del allow_session  # QQ's 3-button keyboard has no session tier (once/always/deny).
-        if smart_denied:
-            description += " Owner override applies to this one operation only."
 
         # Use the reply-to message for passive-message context when we have one.
         # QQ requires a msg_id on outbound messages to a user we've never
@@ -2732,7 +3189,6 @@ class QQAdapter(BasePlatformAdapter):
             description=description,
             command_preview=command,
             timeout_sec=self._APPROVAL_TIMEOUT_SECONDS,
-            allow_permanent=allow_permanent and not smart_denied,
         )
         return await self.send_approval_request(
             chat_id, req, reply_to=msg_id,

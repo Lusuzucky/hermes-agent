@@ -1,0 +1,7 @@
+name: comfyui
+version: 1.0.0
+description: "Local/remote ComfyUI image generation backend via EasyTier. All config via .env."
+author: User
+kind: backend
+requires_env:
+  - COMFYUI_BASE_URL

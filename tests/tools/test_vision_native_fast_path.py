@@ -62,7 +62,7 @@ class TestBuildNativeVisionToolResult:
         assert env["content"][1]["type"] == "image_url"
         assert env["content"][1]["image_url"]["url"] == "data:image/png;base64,XYZ"
         assert "what does it say?" in env["content"][0]["text"]
-        assert "Image attached natively" in env["text_summary"]
+        assert "图片已原生附加到主模型" in env["text_summary"]
 
     def test_no_question_omits_question_section(self):
         env = _build_native_vision_tool_result(
@@ -72,8 +72,8 @@ class TestBuildNativeVisionToolResult:
             image_size_bytes=512,
         )
         text = env["content"][0]["text"]
-        assert "Question:" not in text
-        assert "Image loaded" in text
+        assert "问题：" not in text
+        assert "图片已加载到你的上下文中" in text
 
 
 # ─── _vision_analyze_native ──────────────────────────────────────────────────

@@ -6985,9 +6985,11 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         Always uses the session's primary model/provider.  If `/fast` is
         enabled and the model supports Priority Processing / Anthropic fast
         mode, attach `request_overrides` so the API call is marked
-        accordingly.
+        accordingly.  Merges ``model.inference_params`` from config.yaml
+        (temperature, top_p, etc.) into request_overrides on every turn.
         """
         from hermes_cli.models import resolve_fast_mode_overrides
+        from hermes_cli.runtime_provider import _get_model_config
 
         runtime = {
             "api_key": runtime_kwargs.get("api_key"),
@@ -7015,15 +7017,25 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         }
 
         service_tier = getattr(self, "_service_tier", None)
-        if not service_tier:
+        if service_tier:
+            try:
+                overrides = resolve_fast_mode_overrides(route["model"])
+            except Exception:
+                overrides = None
+            route["request_overrides"] = overrides or {}
+        else:
             route["request_overrides"] = {}
-            return route
 
+        # Merge model.inference_params from config.yaml (temperature, top_p, etc.)
         try:
-            overrides = resolve_fast_mode_overrides(route["model"])
+            model_cfg = _get_model_config()
+            if isinstance(model_cfg, dict):
+                cfg_ip = model_cfg.get("inference_params")
+                if isinstance(cfg_ip, dict):
+                    route["request_overrides"].update(cfg_ip)
         except Exception:
-            overrides = None
-        route["request_overrides"] = overrides or {}
+            pass
+
         return route
 
     def _sync_session_model_from_agent(self, session_id: str, agent: Any) -> None:
@@ -21263,9 +21275,9 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         from agent.memory_manager import sanitize_context
 
         analysis_prompt = (
-            "Describe everything visible in this image in thorough detail. "
-            "Include any text, code, data, objects, people, layout, colors, "
-            "and any other notable visual information."
+            "详细描述这张图片中可见的所有内容。"
+            "包括所有文字、代码、数据、物体、人物、布局、颜色，"
+            "以及任何其他值得注意的视觉信息。"
         )
 
         enriched_parts = []
@@ -21281,22 +21293,22 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                     description = result.get("analysis", "")
                     description = sanitize_context(description)
                     enriched_parts.append(
-                        f"[The user sent an image~ Here's what I can see:\n{description}]\n"
-                        f"[If you need a closer look, use vision_analyze with "
+                        f"[用户发送了一张图片~ 以下是我看到的内容：\n{description}]\n"
+                        f"[如需进一步查看，请使用 vision_analyze，"
                         f"image_url: {path} ~]"
                     )
                 else:
                     enriched_parts.append(
-                        "[The user sent an image but I couldn't quite see it "
-                        "this time (>_<) You can try looking at it yourself "
-                        f"with vision_analyze using image_url: {path}]"
+                        "[用户发送了一张图片，但这次没太看清楚(>_<) "
+                        "你可以尝试使用 vision_analyze 自行查看，"
+                        f"image_url: {path}]"
                     )
             except Exception as e:
                 logger.error("Vision auto-analysis error: %s", e)
                 enriched_parts.append(
-                    f"[The user sent an image but something went wrong when I "
-                    f"tried to look at it~ You can try examining it yourself "
-                    f"with vision_analyze using image_url: {path}]"
+                    f"[用户发送了一张图片，但在尝试查看时出了点问题~ "
+                    f"你可以尝试使用 vision_analyze 自行查看，"
+                    f"image_url: {path}]"
                 )
 
         # Combine: vision descriptions first, then the user's original text

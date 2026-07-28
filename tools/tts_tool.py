@@ -711,6 +711,7 @@ def _dispatch_to_plugin_provider(
     output_path: str,
     provider: str,
     tts_config: Dict[str, Any],
+    emotion: Optional[str] = None,
 ) -> Optional[str]:
     """Route the call to a plugin-registered TTS provider, or return None.
 
@@ -790,6 +791,7 @@ def _dispatch_to_plugin_provider(
         model=model if isinstance(model, str) and model else None,
         speed=float(speed) if isinstance(speed, (int, float)) else None,
         format=str(fmt).lower() if fmt else "mp3",
+        emotion=emotion,
     )
     # Provider contract: returns the (possibly rewritten) output path.
     # Defensive against a provider returning None or a non-string —
@@ -2785,6 +2787,7 @@ def text_to_speech_tool(
     speed: Optional[float] = None,
     instructions: Optional[str] = None,
     provider: Optional[str] = None,
+    emotion: Optional[str] = None,
 ) -> str:
     """
     Convert text to speech audio.
@@ -2841,6 +2844,10 @@ def text_to_speech_tool(
         provider = provider.lower().strip()
     else:
         provider = _get_provider(tts_config)
+
+    # Default emotion from config if caller didn't specify one
+    if emotion is None and isinstance(tts_config, dict):
+        emotion = tts_config.get("emotion")
 
     # User-declared command provider (type: command under tts.providers.<name>)
     # resolves BEFORE the built-in dispatch. Built-in names short-circuit here
@@ -2943,7 +2950,7 @@ def text_to_speech_tool(
         # built-ins-always-win + command-wins-over-plugin defensively.
         elif provider not in BUILTIN_TTS_PROVIDERS and (
             _plugin_path := _dispatch_to_plugin_provider(
-                text, file_str, provider, tts_config,
+                text, file_str, provider, tts_config, emotion=emotion,
             )
         ) is not None:
             file_str = _plugin_path
@@ -3943,9 +3950,13 @@ TTS_SCHEMA = {
                     "names from tts.providers.<name>, or plugin-registered names. "
                     "When omitted, the configured tts.provider from config.yaml is used."
                 )
+            },
+            "emotion": {
+                "type": "string",
+                "description": "Emotion/tone for the TTS voice. GPT-SoVITS requires one of: 普通, 平淡, 开心, 夹子, 温柔, 低落, 委屈, 慵懒, 生气, 有气无力. Choose the emotion that best matches the message content and context. Required for GPT-SoVITS provider, ignored by other providers."
             }
         },
-        "required": ["text"]
+        "required": ["text", "emotion"]
     }
 }
 
@@ -3956,6 +3967,7 @@ registry.register(
     handler=lambda args, **kw: text_to_speech_tool(
         text=args.get("text", ""),
         output_path=args.get("output_path"),
+        emotion=args.get("emotion"),
         speed=args.get("speed"),
         instructions=args.get("instructions"),
         provider=args.get("provider")),

@@ -722,6 +722,7 @@ async def _send_via_adapter(
         if adapter is not None:
             try:
                 metadata = {}
+                metadata["message_category"] = "agent"
                 if thread_id:
                     metadata["thread_id"] = thread_id
                 if platform_name == "ntfy" and chat_id:

@@ -911,16 +911,16 @@ def _build_native_vision_tool_result(
     # has the user's original question in context; this just acknowledges
     # the image is now visible and reminds it what it was asked.
     text_part = (
-        "Image loaded into your context — you can see it natively now. "
-        "Use your built-in vision to answer the user."
+        "图片已加载到你的上下文中——现在你可以原生地看到它。"
+        "使用你内置的视觉能力来回答用户。"
     )
     if isinstance(question, str) and question.strip():
-        text_part += f"\n\nQuestion: {question.strip()}"
+        text_part += f"\n\n问题：{question.strip()}"
 
     summary = (
-        f"Image attached natively for the main model "
-        f"({image_size_bytes / 1024:.1f} KB). "
-        "Answer using built-in vision."
+        f"图片已原生附加到主模型"
+        f"（{image_size_bytes / 1024:.1f} KB）。"
+        "使用内置视觉能力回答。"
     )
 
     return {
@@ -1517,8 +1517,8 @@ async def _handle_vision_analyze(args: Dict[str, Any], **kw: Any) -> str:
 
     # Legacy path: aux LLM describes the image and we return its text.
     full_prompt = (
-        "Fully describe and explain everything about this image, then answer the "
-        f"following question:\n\n{question}"
+        "完整描述并解释这张图片中的所有内容，然后回答"
+        f"以下问题：\n\n{question}"
     )
     # Prefer config.yaml auxiliary.vision.model; env var is a legacy override.
     model = None
@@ -1894,9 +1894,9 @@ def _handle_video_analyze(args: Dict[str, Any], **kw: Any) -> Awaitable[str]:
     video_url = args.get("video_url", "")
     question = args.get("question", "")
     full_prompt = (
-        "Fully describe and explain everything happening in this video, "
-        "including visual content, motion, audio cues, text overlays, and scene "
-        f"transitions. Then answer the following question:\n\n{question}"
+        "完整描述并解释这段视频中发生的所有事情，"
+        "包括视觉内容、动作、音频线索、文字叠加和场景切换。"
+        f"然后回答以下问题：\n\n{question}"
     )
     # Prefer config.yaml auxiliary.video.model (falling back to vision);
     # env vars are a legacy override.
