@@ -1,0 +1,273 @@
+{
+  "348": {
+    "inputs": {
+      "unet_name": "anima-base-v1.0.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNet加载器"
+    }
+  },
+  "349": {
+    "inputs": {
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "加载CLIP"
+    }
+  },
+  "356": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "428",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "采样算法（AuraFlow）"
+    }
+  },
+  "357": {
+    "inputs": {
+      "text": [
+        "387",
+        0
+      ],
+      "clip": [
+        "349",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "358": {
+    "inputs": {
+      "text": "worst quality, low quality, score_1, score_2, score_3, artist name,\nThis image suffers from low resolution and poor quality, appearing pixelated, blurry, and full of compression or jpeg artifacts.\nThe scene is cluttered with many small figures, heads, or people in the background that look like chibi characters, dolls, or fumo dolls, surrounding the subject with a large collection of plush toys.\nThe artwork looks like a fake anime or game screenshot with noise, errors, and scan lines, resembling something unfinished sketch with a simple, abstract, or monochrome background.\nThe anatomy is incorrect, featuring bad proportions, bad perspective, and ugly, deformed body parts such as bad hands, bad feet, fused or missing fingers, extra limbs, and twisted or flexible deformities. The image contains four fingers, six fingers, four toes, six toes.\nThis image contains many of the artist's signatures around the edges, and contains many watermarks, signatures, logos, or censorship bars like mosaics, and has an low-score AI-generated error.\nThe character in this image has a white area above the eyes, a white forehead, and many lines on the eyelids.\nDraw by @Alexander Groznov, @Andrew Wyeth, @Boris Vallejo, @Entei Ryu, @Manara Milo, @Marco Turini, @Norman Rockwell, @Paulina Sadowska, @Syd Mead, @Syd Mills, @THORES Shibamoto, @chinese anime style, @renwan.",
+      "clip": [
+        "349",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "359": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "361": {
+    "inputs": {
+      "width": 1024,
+      "height": 1536,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "尺寸"
+    }
+  },
+  "362": {
+    "inputs": {
+      "seed": 654078490328536,
+      "steps": 6,
+      "cfg": 1,
+      "sampler_name": "er_sde",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "356",
+        0
+      ],
+      "positive": [
+        "357",
+        0
+      ],
+      "negative": [
+        "358",
+        0
+      ],
+      "latent_image": [
+        "361",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "364": {
+    "inputs": {
+      "samples": [
+        "362",
+        0
+      ],
+      "vae": [
+        "359",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "368": {
+    "inputs": {
+      "prompt": "@kani biimu, natsu \\(blue archive\\), loli, "
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "画师串"
+    }
+  },
+  "385": {
+    "inputs": {
+      "prompt": "masterpiece, very aesthetic, best quality, score_9, score_8，highres, absurdres, anime screenshot, official art，"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "质量(不动)"
+    }
+  },
+  "387": {
+    "inputs": {
+      "inputcount": 3,
+      "delimiter": " ",
+      "return_list": false,
+      "Update inputs": null,
+      "string_1": [
+        "368",
+        0
+      ],
+      "string_2": [
+        "385",
+        0
+      ],
+      "string_3": [
+        "446",
+        0
+      ]
+    },
+    "class_type": "JoinStringMulti",
+    "_meta": {
+      "title": "合并字符串（多重）"
+    }
+  },
+  "428": {
+    "inputs": {
+      "lora_name": "anima-turbo-lora-v0.2.safetensors",
+      "strength_model": 1,
+      "model": [
+        "451",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA加载器（仅模型）"
+    }
+  },
+  "439": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "364",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "446": {
+    "inputs": {
+      "model": "deepseek-v4-pro",
+      "thinking": "disabled",
+      "prompt": [
+        "449",
+        0
+      ]
+    },
+    "class_type": "DeepSeekANIMA3",
+    "_meta": {
+      "title": "DeepSeek -> ANIMA3 Prompt"
+    }
+  },
+  "447": {
+    "inputs": {
+      "text_0": "1girl, solo, pink hair, red eyes, side bun, yellow hair tie, flat chest, yellow yukata, yellow pattern, disheveled clothes, breasts out, ahegao, cowgirl position, straddling, sex, penis in vagina, stomach bulge, bedroom",
+      "text": [
+        "446",
+        0
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "Show Text 🐍"
+    }
+  },
+  "449": {
+    "inputs": {
+      "prompt": ""
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "简单描述提示词"
+    }
+  },
+  "450": {
+    "inputs": {
+      "text": "copyright,lowres,bad,error,fewer,extra,missing,worst quality,jpeg artifacts,bad quality,watermark,signature,extra digits,artistic error,username,abstract,artist logo,artist name,signature,bad fingers,bad hand,patreon username,patreon logo,web address,simple background,(worst quality, low quality:1.4),(deformed, distorted, disfigured:1.3),poorly drawn hands,extra fingers,mutated,lowres,text,watermark,signature,messy drawing,doll,plastic skin,fat,abs,old,2girl,fat girl,very long leg,very long thigh,pale skin,\nbad anatomy,inverted limbs,missing leg,missing arm,extra leg,extra arm,crowd,anime, cartoon, 2d, illustration, drawing, painting, flat color, deformed, bad anatomy, (anime style:1.4), (2d:1.3),sharp teeth,expressionless,Mosaic，"
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "451": {
+    "inputs": {
+      "lora_name": "anima-base-1-masterpiece-v51.safetensors",
+      "strength_model": 0.5,
+      "model": [
+        "452",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA加载器（仅模型）"
+    }
+  },
+  "452": {
+    "inputs": {
+      "lora_name": "anima-highres-aesthetic-boost.safetensors",
+      "strength_model": 0.5,
+      "model": [
+        "348",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA加载器（仅模型）"
+    }
+  }
+}
